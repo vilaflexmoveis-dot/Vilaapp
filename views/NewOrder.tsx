@@ -21,7 +21,7 @@ const NewOrder: React.FC<NewOrderProps> = ({ onBack, onAddNewCustomer }) => {
   const { user } = useAuth();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const isSubmittingRef = useRef(false); // Bloqueio imediato para evitar race conditions
+  const isSubmittingRef = useRef(false); 
 
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -119,34 +119,31 @@ const NewOrder: React.FC<NewOrderProps> = ({ onBack, onAddNewCustomer }) => {
           newItems[index].quantity = newQty;
           setItems(newItems);
       } else {
-          // Se for zero ou menos, remove o item
           setItems(newItems.filter((_, i) => i !== index));
       }
   };
 
-  const handleSaveOrder = async () => {
+  const handleSaveOrder = () => {
     if (isSubmittingRef.current || !selectedCustomerId || items.length === 0) return;
     
+    // BLOQUEIO INSTANTÂNEO
     isSubmittingRef.current = true;
     setIsSubmitting(true);
 
-    try {
-        if (user?.email) {
-            await addOrder({
-                customerId: selectedCustomerId,
-                status: OrderStatus.Open, 
-                sendToProduction: false,
-                paymentMethodId,
-                createdBy: user.email,
-                notes: notes,
-                deliveryDate: deliveryDate, 
-            }, items, user.email);
-            onBack();
-        }
-    } catch (err) {
-        alert("Erro ao salvar pedido. Verifique sua conexão.");
-        isSubmittingRef.current = false;
-        setIsSubmitting(false);
+    if (user?.email) {
+        // DISPARA O SALVAMENTO E VOLTA NA HORA
+        addOrder({
+            customerId: selectedCustomerId,
+            status: OrderStatus.Open, 
+            sendToProduction: false,
+            paymentMethodId,
+            createdBy: user.email,
+            notes: notes,
+            deliveryDate: deliveryDate, 
+        }, items, user.email);
+        
+        // VOLTA IMEDIATAMENTE - O app salvará em segundo plano
+        onBack();
     }
   };
 
@@ -175,7 +172,6 @@ const NewOrder: React.FC<NewOrderProps> = ({ onBack, onAddNewCustomer }) => {
         </div>
       ) : (
         <div className="animate-fade-in space-y-6">
-          {/* CONFIRMAÇÃO DO CLIENTE SELECIONADO */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border-2 border-primary-500 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                   <div className="p-3 bg-primary-100 dark:bg-primary-900/50 rounded-full">
@@ -227,14 +223,6 @@ const NewOrder: React.FC<NewOrderProps> = ({ onBack, onAddNewCustomer }) => {
                               <p className="text-[10px] font-black uppercase text-blue-600 mb-1">Produto</p>
                               <p className="font-bold text-gray-800 dark:text-gray-100">{products.find(p => p.id === currentItem.productId)?.name}</p>
                           </div>
-                          
-                          <div className="w-24 text-center">
-                              <label className="text-[10px] font-black block uppercase text-gray-500 mb-1">Disponível</label>
-                              <div className={`p-2 rounded-md font-black text-sm border bg-white dark:bg-gray-800 ${currentAvailableStock <= 0 ? 'text-red-600 border-red-200 animate-pulse' : 'text-green-600 border-green-200'}`}>
-                                  {currentAvailableStock} un
-                              </div>
-                          </div>
-
                           <div className="w-20">
                               <label className="text-[10px] font-black block uppercase text-gray-500 mb-1">Qtd</label>
                               <input type="number" value={currentItem.quantity} onChange={e => setCurrentItem({...currentItem, quantity: e.target.value})} className="w-full p-2 border rounded dark:bg-gray-700 font-bold text-center" />
@@ -264,29 +252,15 @@ const NewOrder: React.FC<NewOrderProps> = ({ onBack, onAddNewCustomer }) => {
                                       <td className="px-4 py-3 font-bold">{products.find(p => p.id === item.productId)?.name}</td>
                                       <td className="px-4 py-3">
                                           <div className="flex items-center justify-center gap-3">
-                                              <button 
-                                                  onClick={() => updateItemQty(idx, -1)}
-                                                  className="p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-red-100 hover:text-red-600 transition-colors"
-                                                  title="Diminuir"
-                                              >
-                                                  <MinusIcon className="w-4 h-4" />
-                                              </button>
+                                              <button onClick={() => updateItemQty(idx, -1)} className="p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-red-100 hover:text-red-600"><MinusIcon className="w-4 h-4" /></button>
                                               <span className="font-black text-lg min-w-[30px] text-center">{item.quantity}</span>
-                                              <button 
-                                                  onClick={() => updateItemQty(idx, 1)}
-                                                  className="p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-green-100 hover:text-green-600 transition-colors"
-                                                  title="Aumentar"
-                                              >
-                                                  <PlusIcon className="w-4 h-4" />
-                                              </button>
+                                              <button onClick={() => updateItemQty(idx, 1)} className="p-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 hover:bg-green-100 hover:text-green-600"><PlusIcon className="w-4 h-4" /></button>
                                           </div>
                                       </td>
                                       <td className="px-4 py-3 text-right text-gray-500">{item.unitPrice.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</td>
                                       <td className="px-4 py-3 text-right font-black text-primary-600">{(item.quantity * item.unitPrice).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</td>
                                       <td className="px-4 py-3 text-right">
-                                          <button onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600 transition-transform hover:scale-110">
-                                              <TrashIcon className="w-5 h-5" />
-                                          </button>
+                                          <button onClick={() => setItems(items.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600"><TrashIcon className="w-5 h-5" /></button>
                                       </td>
                                   </tr>
                               ))}
@@ -322,9 +296,9 @@ const NewOrder: React.FC<NewOrderProps> = ({ onBack, onAddNewCustomer }) => {
                   <button 
                     onClick={handleSaveOrder} 
                     disabled={items.length === 0 || isSubmitting} 
-                    className="w-full py-5 text-white text-xl font-black rounded-2xl bg-green-600 hover:bg-green-700 shadow-xl transition active:scale-95 flex items-center justify-center uppercase disabled:bg-gray-400 disabled:shadow-none"
+                    className="w-full py-5 text-white text-xl font-black rounded-2xl bg-green-600 hover:bg-green-700 shadow-xl transition active:scale-95 flex items-center justify-center uppercase disabled:bg-gray-400"
                   >
-                      {isSubmitting ? 'Salvando...' : 'Finalizar Pedido'}
+                      {isSubmitting ? 'Processando...' : 'Finalizar Pedido'}
                   </button>
               </div>
             </div>

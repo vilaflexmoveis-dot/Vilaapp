@@ -28,20 +28,20 @@ export type ViewType = 'dashboard' | 'orders' | 'customers' | 'production' | 'st
 // Mapa de permissões por view
 const VIEW_PERMISSIONS: Record<ViewType, string> = {
     dashboard: 'canViewDashboard',
-    orders: 'isSales',
-    customers: 'isSales',
-    production: 'isProduction',
-    stock: 'isStock',
-    products: 'isAdmin',
-    expedicao: 'isStock',
-    finance: 'isFinance',
-    reports: 'isAdmin',
-    settings: 'isAdmin',
-    newOrder: 'isSales',
-    newReturn: 'isStock',
-    newCustomer: 'isSales',
-    newProductionOrder: 'isProduction',
-    orderDetail: 'isSales'
+    orders: 'canViewOrders',
+    customers: 'canViewCustomers',
+    production: 'canViewProduction',
+    stock: 'canViewStock',
+    products: 'canViewProducts',
+    expedicao: 'canViewExpedicao',
+    finance: 'canViewFinance',
+    reports: 'canViewReports',
+    settings: 'canViewSettings',
+    newOrder: 'canViewOrders',
+    newReturn: 'canViewStock',
+    newCustomer: 'canViewCustomers',
+    newProductionOrder: 'canViewProduction',
+    orderDetail: 'canViewOrders'
 };
 
 interface BottomNavProps {
@@ -54,13 +54,13 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, setCurrentView }) =>
     
     const navItems: { view: ViewType; label: string; icon: React.ElementType; permission: string }[] = [
         { view: 'dashboard', label: 'Home', icon: HomeIcon, permission: 'canViewDashboard' },
-        { view: 'orders', label: 'Pedidos', icon: ShoppingCartIcon, permission: 'isSales' },
-        { view: 'production', label: 'Prod.', icon: CogIcon, permission: 'isProduction' },
-        { view: 'stock', label: 'Estoque', icon: ArchiveIcon, permission: 'isStock' },
-        { view: 'expedicao', label: 'Exped.', icon: TruckIcon, permission: 'isStock' },
-        { view: 'finance', label: 'Financ.', icon: CurrencyDollarIcon, permission: 'isFinance' },
-        { view: 'customers', label: 'Clientes', icon: UsersIcon, permission: 'isSales' },
-        { view: 'reports', label: 'Relat.', icon: ChartBarIcon, permission: 'isAdmin' },
+        { view: 'orders', label: 'Pedidos', icon: ShoppingCartIcon, permission: 'canViewOrders' },
+        { view: 'production', label: 'Prod.', icon: CogIcon, permission: 'canViewProduction' },
+        { view: 'stock', label: 'Estoque', icon: ArchiveIcon, permission: 'canViewStock' },
+        { view: 'expedicao', label: 'Exped.', icon: TruckIcon, permission: 'canViewExpedicao' },
+        { view: 'finance', label: 'Financ.', icon: CurrencyDollarIcon, permission: 'canViewFinance' },
+        { view: 'customers', label: 'Clientes', icon: UsersIcon, permission: 'canViewCustomers' },
+        { view: 'reports', label: 'Relat.', icon: ChartBarIcon, permission: 'canViewReports' },
     ];
     
     const hasPermission = (perm: string) => {
@@ -98,10 +98,10 @@ const AppContent: React.FC = () => {
 
     const findFirstAvailableView = useCallback((u: User): ViewType => {
         if (u.isAdmin || u.canViewDashboard) return 'dashboard';
-        if (u.isSales) return 'orders';
-        if (u.isProduction) return 'production';
-        if (u.isStock) return 'stock';
-        if (u.isFinance) return 'finance';
+        if (u.canViewOrders) return 'orders';
+        if (u.canViewProduction) return 'production';
+        if (u.canViewStock) return 'stock';
+        if (u.canViewFinance) return 'finance';
         return 'orders';
     }, []);
 

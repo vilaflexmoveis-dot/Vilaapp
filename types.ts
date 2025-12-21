@@ -135,13 +135,18 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password?: string; // Simple password for demo
+  password?: string;
   isAdmin: boolean;
-  isSales: boolean;
-  isProduction: boolean;
-  isStock: boolean;
-  isFinance: boolean;
-  canViewDashboard?: boolean;
+  canViewDashboard: boolean;
+  canViewOrders: boolean;
+  canViewCustomers: boolean;
+  canViewProduction: boolean;
+  canViewExpedicao: boolean;
+  canViewStock: boolean;
+  canViewProducts: boolean;
+  canViewFinance: boolean;
+  canViewReports: boolean;
+  canViewSettings: boolean;
 }
 
 export interface Log {

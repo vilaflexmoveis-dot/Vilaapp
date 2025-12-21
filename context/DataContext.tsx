@@ -44,11 +44,11 @@ interface DataContextType {
   loadDataFromExternalSource: (data: any) => void;
   syncFromGoogleSheetUrl: (url: string, silent?: boolean) => Promise<void>;
   logAction: (user: string, action: string, tableName: string, recordId?: string, notes?: string) => void;
+  resetTransactionalData: (userEmail: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-// NOVOS URLs FORNECIDOS PELO USUÁRIO PARA RESTAURAR SINCRONIA
 const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1a6zdgITDWY-JhN_jbIkqbU96y3WOuZWQNiKixh8TLLI/edit?usp=sharing';
 const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzgzPBeeNs7waT0XFHpdJlQPtvjG12ctQkgiV2RD1VVpuL7eTHfZvAxi0hsJJbk-gWh/exec';
 
@@ -84,6 +84,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return stored ? new Set(JSON.parse(stored)) : new Set();
   });
 
+  const [isResetting, setIsResetting] = useState(false);
+
   useEffect(() => {
       localStorage.setItem('factory_deleted_ids', JSON.stringify(Array.from(deletedIds)));
   }, [deletedIds]);
@@ -103,10 +105,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       localStorage.setItem('factory_app_users', JSON.stringify(users));
   }, [users]);
 
-  const saveToCloud = useCallback(async (tableName: string, action: 'create' | 'update' | 'delete', data: any) => {
+  const saveToCloud = useCallback(async (tableName: string, action: string, data: any) => {
       if (!googleScriptUrl) return; 
       try {
-          await fetch(googleScriptUrl, {
+          fetch(googleScriptUrl, {
               method: 'POST',
               mode: 'no-cors', 
               headers: { 'Content-Type': 'text/plain' },
@@ -116,6 +118,27 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.warn("Sync failed:", error);
       }
   }, [googleScriptUrl]);
+
+  const resetTransactionalData = useCallback(async (userEmail: string) => {
+      setIsResetting(true);
+      setOrders([]);
+      setOrderItems([]);
+      setProductionOrders([]);
+      setPayments([]);
+      setLogs([]);
+      setDeletedIds(new Set()); 
+      
+      const tables = ['Pedidos', 'Itens_Pedido', 'Producao', 'Pagamentos'];
+      for (const table of tables) {
+          saveToCloud(table, 'reset_all', { confirm: true });
+      }
+      
+      logAction(userEmail, 'Reset Geral', 'Sistema', 'ALL', 'Limpeza completa de pedidos e financeiro efetuada.');
+      
+      setTimeout(() => {
+          setIsResetting(false);
+      }, 3000);
+  }, [saveToCloud]);
 
   const logAction = useCallback((user: string, action: string, tableName: string, recordId?: string, notes?: string) => {
       const newLog: Log = {
@@ -218,11 +241,23 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const newCustomers = deduplicateById(data.customers).map((c: any) => ({ ...c, specialPrices: c.specialPrices ? safeParse(c.specialPrices) : [] }));
     const newProducts = deduplicateById(data.products);
-    const rawOrders = deduplicateById(data.orders).map((o: any) => ({ 
-        ...o, 
-        installments: o.installments ? safeParse(o.installments) : [],
-        romaneioDate: o.romaneioDate || undefined 
-    }));
+    
+    const rawOrders = deduplicateById(data.orders).map((o: any) => {
+        return { 
+            ...o, 
+            installments: o.installments ? safeParse(o.installments) : [],
+            romaneioDate: o.romaneioDate || undefined 
+        };
+    });
+
+    const finalOrders = rawOrders.map(ro => {
+        const local = orders.find(lo => lo.id === ro.id);
+        if (local && local.status === OrderStatus.Delivered && ro.status !== OrderStatus.Delivered) {
+            return { ...ro, status: OrderStatus.Delivered, romaneioDate: local.romaneioDate };
+        }
+        return ro;
+    });
+
     const newOrderItems = deduplicateById(data.orderItems);
 
     setCustomers(newCustomers);
@@ -231,8 +266,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (data.productionOrders) setProductionOrders(deduplicateById(data.productionOrders));
     if (data.payments) setPayments(deduplicateById(data.payments));
     
-    const allocatedOrders = runAllocation(rawOrders, newProducts, newOrderItems);
-    setOrders(allocatedOrders || rawOrders);
+    const allocatedOrders = runAllocation(finalOrders, newProducts, newOrderItems);
+    setOrders(allocatedOrders || finalOrders);
 
     if (data.users) { 
         setUsers(() => {
@@ -245,9 +280,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             return merged;
         });
     }
-  }, [deletedIds, runAllocation]);
+  }, [deletedIds, runAllocation, orders]);
 
   const syncFromGoogleSheetUrl = useCallback(async (url: string, silent: boolean = false) => {
+      if (isResetting) return; 
+      
       if (!url || !url.includes('docs.google.com/spreadsheets')) {
           if (!silent) alert("Configure a URL da planilha Google.");
           return;
@@ -278,13 +315,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error(error);
           if (!silent) alert(`Erro na Sincronização: ${error}`);
       }
-  }, [loadDataFromExternalSource]);
+  }, [loadDataFromExternalSource, isResetting]);
 
   useEffect(() => {
-      if (!autoSyncEnabled || !googleSheetUrl) return;
+      if (!autoSyncEnabled || !googleSheetUrl || isResetting) return;
       const intervalId = setInterval(() => syncFromGoogleSheetUrl(googleSheetUrl, true), syncInterval * 1000);
       return () => clearInterval(intervalId);
-  }, [autoSyncEnabled, syncInterval, googleSheetUrl, syncFromGoogleSheetUrl]);
+  }, [autoSyncEnabled, syncInterval, googleSheetUrl, syncFromGoogleSheetUrl, isResetting]);
 
   const setGoogleSheetConfig = useCallback((url: string, scriptUrl: string, autoSync: boolean, interval: number) => {
       setGoogleSheetUrl(url); setGoogleScriptUrl(scriptUrl); setAutoSyncEnabled(autoSync); setSyncInterval(interval);
@@ -321,17 +358,20 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         costPrice: products.find(p => p.id === item.productId)?.costPrice || 0 
     }));
     
-    const updatedOrders = [newOrder, ...orders];
-    const updatedOrderItems = [...orderItems, ...newItems];
-    const reallocated = runAllocation(updatedOrders, products, updatedOrderItems);
-    
-    setOrders(reallocated || updatedOrders);
-    setOrderItems(updatedOrderItems);
+    // ATUALIZAÇÃO INSTANTÂNEA LOCAL (Não espera o fetch)
+    setOrders(prev => [newOrder, ...prev]);
+    setOrderItems(prev => [...prev, ...newItems]);
 
-    await saveToCloud('Pedidos', 'create', { ...newOrder, installments: JSON.stringify(newOrder.installments || []) });
-    for (const item of newItems) {
-        await saveToCloud('Itens_Pedido', 'create', item);
-    }
+    // ENVIA PARA A NUVEM EM SEGUNDO PLANO
+    saveToCloud('Pedidos', 'bulk_create_order', {
+        order: { ...newOrder, installments: JSON.stringify(newOrder.installments || []) },
+        items: newItems
+    });
+
+    // Gatilho de alocação pós-atualização
+    setTimeout(() => {
+        setOrders(prev => runAllocation(prev, products, [...orderItems, ...newItems]) || prev);
+    }, 100);
   }, [orders, products, orderItems, saveToCloud, runAllocation]);
 
   const addReturn = useCallback(async (orderData: Omit<Order, 'id' | 'orderNumber' | 'orderDate'>, items: Omit<OrderItem, 'id' | 'orderId'>[], userEmail: string) => {
@@ -372,10 +412,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setOrders(prev => [newOrder, ...prev]);
     setOrderItems(prev => [...prev, ...newItems]);
 
-    await saveToCloud('Pedidos', 'create', { ...newOrder, installments: '[]' });
-    for (const item of newItems) {
-        await saveToCloud('Itens_Pedido', 'create', item);
-    }
+    saveToCloud('Pedidos', 'bulk_create_order', {
+        order: { ...newOrder, installments: '[]' },
+        items: newItems
+    });
 
     logAction(userEmail, 'Devolução', 'Pedidos', orderId, `Crédito de itens para cliente.`);
   }, [orders, products, saveToCloud, logAction]);
@@ -407,7 +447,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                        const updatedProduct = { ...productToUpdate, currentStock: productToUpdate.currentStock + updated.produced };
                        saveToCloud('Produtos', 'update', updatedProduct);
                        const updatedProducts = prevP.map(p => p.id === updated.productId ? updatedProduct : p);
-                       setOrders(prevO => runAllocation(prevO, updatedProducts, orderItems) || prevO);
+                       setTimeout(() => {
+                           setOrders(prevO => runAllocation(prevO, updatedProducts, orderItems) || prevO);
+                       }, 50);
                        return updatedProducts;
                    }
                    return prevP;
@@ -443,7 +485,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const updated = prev.map(p => p.id === productId ? { ...p, ...data } : p);
         const p = updated.find(x => x.id === productId);
         if (p) saveToCloud('Produtos', 'update', p);
-        setOrders(prevO => runAllocation(prevO, updated, orderItems) || prevO);
+        setTimeout(() => {
+            setOrders(prevO => runAllocation(prevO, updated, orderItems) || prevO);
+        }, 50);
         return updated;
     });
   }, [saveToCloud, orderItems, runAllocation]);
@@ -514,7 +558,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateOrderStatus, addCustomer, updateCustomer, deleteCustomer, addOrder, addReturn, deleteOrder, updateProductionStatus, 
         updateProductionPriority, addProductionOrder, deleteProductionOrder, updateProductDetails, addProduct, updateProduct, 
         deleteProduct, saveSignature, addPayment, addUser, updateUser, deleteUser, updateProductionOrderQuantity, 
-        loadDataFromExternalSource, syncFromGoogleSheetUrl, logAction
+        loadDataFromExternalSource, syncFromGoogleSheetUrl, logAction, resetTransactionalData
     }}>
       {children}
     </DataContext.Provider>

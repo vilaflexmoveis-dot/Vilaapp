@@ -6,6 +6,8 @@ import { User } from '../types';
 import { PlusIcon, TrashIcon, PencilIcon, CheckIcon, DocumentDownloadIcon, ArchiveIcon, CogIcon, ArrowLeftIcon, EyeIcon, XCircleIcon, DocumentTextIcon, CheckCircleIcon } from '../components/icons/Icons';
 import Modal from '../components/Modal';
 
+const APP_VERSION = "v2.8.6-Fast (Build 2025.03)";
+
 const REQUIRED_SCHEMA = {
     "Clientes": ["id", "name", "phone", "email", "address", "specialPrices"],
     "Produtos": ["id", "name", "barcode", "basePrice", "costPrice", "currentStock", "minimumStock"],
@@ -17,7 +19,7 @@ const REQUIRED_SCHEMA = {
 };
 
 const Settings: React.FC = () => {
-    const { users, addUser, updateUser, deleteUser, customers, products, orders, orderItems, productionOrders, payments, googleSheetUrl, googleScriptUrl, autoSyncEnabled, syncInterval, lastSyncTime, setGoogleSheetConfig, syncFromGoogleSheetUrl } = useData();
+    const { users, addUser, updateUser, deleteUser, customers, products, orders, orderItems, productionOrders, payments, googleSheetUrl, googleScriptUrl, autoSyncEnabled, syncInterval, lastSyncTime, setGoogleSheetConfig, syncFromGoogleSheetUrl, resetTransactionalData } = useData();
     const { user: currentUser } = useAuth();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isManualOpen, setIsManualOpen] = useState(false);
@@ -36,11 +38,16 @@ const Settings: React.FC = () => {
     const [password, setPassword] = useState('');
     const [roles, setRoles] = useState({
         isAdmin: false,
-        isSales: false,
-        isProduction: false,
-        isStock: false,
-        isFinance: false,
         canViewDashboard: true,
+        canViewOrders: false,
+        canViewCustomers: false,
+        canViewProduction: false,
+        canViewExpedicao: false,
+        canViewStock: false,
+        canViewProducts: false,
+        canViewFinance: false,
+        canViewReports: false,
+        canViewSettings: false
     });
     
     const [activeTab, setActiveTab] = useState<'migration' | 'users' | 'developer'>('migration');
@@ -110,11 +117,16 @@ const Settings: React.FC = () => {
             setPassword(userToEdit.password || '');
             setRoles({
                 isAdmin: !!userToEdit.isAdmin,
-                isSales: !!userToEdit.isSales,
-                isProduction: !!userToEdit.isProduction,
-                isStock: !!userToEdit.isStock,
-                isFinance: !!userToEdit.isFinance,
-                canViewDashboard: userToEdit.canViewDashboard !== undefined ? !!userToEdit.canViewDashboard : true,
+                canViewDashboard: !!userToEdit.canViewDashboard,
+                canViewOrders: !!userToEdit.canViewOrders,
+                canViewCustomers: !!userToEdit.canViewCustomers,
+                canViewProduction: !!userToEdit.canViewProduction,
+                canViewExpedicao: !!userToEdit.canViewExpedicao,
+                canViewStock: !!userToEdit.canViewStock,
+                canViewProducts: !!userToEdit.canViewProducts,
+                canViewFinance: !!userToEdit.canViewFinance,
+                canViewReports: !!userToEdit.canViewReports,
+                canViewSettings: !!userToEdit.canViewSettings
             });
         } else {
             setEditingUser(null);
@@ -123,11 +135,16 @@ const Settings: React.FC = () => {
             setPassword('');
             setRoles({
                 isAdmin: false,
-                isSales: false,
-                isProduction: false,
-                isStock: false,
-                isFinance: false,
                 canViewDashboard: true,
+                canViewOrders: false,
+                canViewCustomers: false,
+                canViewProduction: false,
+                canViewExpedicao: false,
+                canViewStock: false,
+                canViewProducts: false,
+                canViewFinance: false,
+                canViewReports: false,
+                canViewSettings: false
             });
         }
         setIsModalOpen(true);
@@ -191,7 +208,7 @@ const Settings: React.FC = () => {
             Itens_Pedido: ["id", "orderId", "productId", "quantity", "unitPrice", "costPrice"],
             Producao: ["id", "orderId", "productId", "quantity", "produced", "priority", "status", "startDate", "completionDate", "creationDate"],
             Pagamentos: ["id", "customerId", "orderId", "amountPaid", "paymentDate", "paymentMethodId"],
-            Usuarios: ["id", "name", "email", "password", "isAdmin", "isSales", "isProduction", "isStock", "isFinance", "canViewDashboard"]
+            Usuarios: ["id", "name", "email", "password", "isAdmin", "canViewDashboard", "canViewOrders", "canViewCustomers", "canViewProduction", "canViewExpedicao", "canViewStock", "canViewProducts", "canViewFinance", "canViewReports", "canViewSettings"]
         };
         Object.entries(headers).forEach(([sheetName, sheetHeaders]) => {
             const ws = XLSX.utils.aoa_to_sheet([sheetHeaders]);
@@ -200,51 +217,80 @@ const Settings: React.FC = () => {
         XLSX.writeFile(wb, "VilaFlex_Modelo_Integracao.xlsx");
     };
 
-    const appsScriptCode = `// CÓDIGO PARA O GOOGLE APPS SCRIPT (VilaFlex)
+    const appsScriptCode = `// CÓDIGO ULTRA RÁPIDO PARA O GOOGLE APPS SCRIPT (VilaFlex v2.8.6)
 function doPost(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var data;
   try {
     data = JSON.parse(e.postData.contents);
   } catch (err) {
-    return ContentService.createTextOutput("Erro no JSON: " + err).setMimeType(ContentService.MimeType.TEXT);
+    return ContentService.createTextOutput("Erro no JSON").setMimeType(ContentService.MimeType.TEXT);
   }
-  var sheet = ss.getSheetByName(data.tableName);
-  if (!sheet) return ContentService.createTextOutput("Tabela não encontrada").setMimeType(ContentService.MimeType.TEXT);
-
+  
   var action = data.action;
+  
+  // ALTA PERFORMANCE: Gravação em lote de pedido e itens
+  if (action === 'bulk_create_order') {
+    var order = data.data.order;
+    var items = data.data.items;
+    
+    // Gravar Pedido (1 linha)
+    var sPed = ss.getSheetByName("Pedidos");
+    var hPed = sPed.getRange(1, 1, 1, sPed.getLastColumn()).getValues()[0];
+    sPed.appendRow(hPed.map(function(h) { return order[h] !== undefined ? order[h] : ""; }));
+    
+    // Gravar Itens (Lote - Muito rápido)
+    if (items && items.length > 0) {
+      var sItens = ss.getSheetByName("Itens_Pedido");
+      var hItens = sItens.getRange(1, 1, 1, sItens.getLastColumn()).getValues()[0];
+      var rowsToInsert = items.map(function(item) {
+        return hItens.map(function(h) { return item[h] !== undefined ? item[h] : ""; });
+      });
+      sItens.getRange(sItens.getLastRow() + 1, 1, rowsToInsert.length, hItens.length).setValues(rowsToInsert);
+    }
+    return ContentService.createTextOutput("OK_FAST").setMimeType(ContentService.MimeType.TEXT);
+  }
+
+  var sheet = ss.getSheetByName(data.tableName);
+  if (!sheet) return ContentService.createTextOutput("ERRO_TABLE").setMimeType(ContentService.MimeType.TEXT);
+
   var record = data.data;
+
+  if (action === 'reset_all') {
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) sheet.deleteRows(2, lastRow - 1);
+    return ContentService.createTextOutput("OK_RESET").setMimeType(ContentService.MimeType.TEXT);
+  }
+
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var values = headers.map(function(h) { return record[h] !== undefined ? record[h] : ""; });
   var idColIndex = headers.indexOf("id") + 1;
 
   if (action === 'create' || action === 'update') {
-    // SEMPRE VERIFICA SE JÁ EXISTE PARA EVITAR REPETIDOS NA PLANILHA (UPSERT)
     var dataRange = sheet.getDataRange().getValues();
     for (var i = 1; i < dataRange.length; i++) {
       if (String(dataRange[i][idColIndex - 1]) === String(record.id)) {
         sheet.getRange(i + 1, 1, 1, values.length).setValues([values]);
-        return ContentService.createTextOutput("Atualizado").setMimeType(ContentService.MimeType.TEXT);
+        return ContentService.createTextOutput("OK_UPD").setMimeType(ContentService.MimeType.TEXT);
       }
     }
-    // Se não encontrou o ID, adiciona uma nova linha
     sheet.appendRow(values);
-    return ContentService.createTextOutput("Criado").setMimeType(ContentService.MimeType.TEXT);
+    return ContentService.createTextOutput("OK_NEW").setMimeType(ContentService.MimeType.TEXT);
   } else if (action === 'delete') {
     var dataRange = sheet.getDataRange().getValues();
     for (var i = 1; i < dataRange.length; i++) {
       if (String(dataRange[i][idColIndex - 1]) === String(record.id)) {
         sheet.deleteRow(i + 1);
-        return ContentService.createTextOutput("Excluído").setMimeType(ContentService.MimeType.TEXT);
+        return ContentService.createTextOutput("OK_DEL").setMimeType(ContentService.MimeType.TEXT);
       }
     }
   }
-  return ContentService.createTextOutput("Ok").setMimeType(ContentService.MimeType.TEXT);
+  return ContentService.createTextOutput("OK").setMimeType(ContentService.MimeType.TEXT);
 }
-function doGet(e) { return ContentService.createTextOutput("Script Ativo"); }`;
+function doGet(e) { return ContentService.createTextOutput("ATIVO"); }`;
 
     return (
-        <div className="container mx-auto pb-10">
+        <div className="container mx-auto pb-20">
             <h1 className="text-3xl font-bold mb-6 text-gray-800 dark:text-gray-100">Configurações</h1>
 
             <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6 overflow-x-auto no-scrollbar">
@@ -280,10 +326,14 @@ function doGet(e) { return ContentService.createTextOutput("Script Ativo"); }`;
                                         <td className="py-3 px-4 text-center">
                                             <div className="flex flex-wrap justify-center gap-1">
                                                 {u.isAdmin && <span className="bg-red-100 text-red-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">ADMIN</span>}
-                                                {u.isSales && <span className="bg-blue-100 text-blue-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">VENDAS</span>}
-                                                {u.isProduction && <span className="bg-orange-100 text-orange-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">PRODUÇÃO</span>}
-                                                {u.isStock && <span className="bg-green-100 text-green-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">ESTOQUE</span>}
-                                                {u.isFinance && <span className="bg-purple-100 text-purple-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">FINANCEIRO</span>}
+                                                {u.canViewDashboard && <span className="bg-blue-100 text-blue-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">DASH</span>}
+                                                {u.canViewOrders && <span className="bg-orange-100 text-orange-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">PEDIDOS</span>}
+                                                {u.canViewCustomers && <span className="bg-green-100 text-green-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">CLIENTES</span>}
+                                                {u.canViewProduction && <span className="bg-purple-100 text-purple-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">PRODUÇÃO</span>}
+                                                {u.canViewExpedicao && <span className="bg-indigo-100 text-indigo-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">EXPED</span>}
+                                                {u.canViewStock && <span className="bg-teal-100 text-teal-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">ESTOQUE</span>}
+                                                {u.canViewFinance && <span className="bg-emerald-100 text-emerald-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">FINAN</span>}
+                                                {u.canViewReports && <span className="bg-amber-100 text-amber-700 text-[9px] px-1.5 py-0.5 rounded font-black uppercase">RELAT</span>}
                                             </div>
                                         </td>
                                         <td className="py-3 px-4 text-center">
@@ -382,11 +432,19 @@ function doGet(e) { return ContentService.createTextOutput("Script Ativo"); }`;
                 </div>
             )}
 
+            <div className="mt-10 pt-10 border-t border-gray-200 dark:border-gray-700 flex flex-col items-center">
+                <div className="flex items-center gap-2 mb-2">
+                    <img src="https://cdn-icons-png.flaticon.com/512/3043/3043213.png" className="w-5 h-5 opacity-50 grayscale" alt="App Logo" />
+                    <span className="text-xs font-black uppercase text-gray-400 tracking-tighter">VilaFlex Mattress ERP</span>
+                </div>
+                <p className="text-[10px] font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">{APP_VERSION}</p>
+            </div>
+
             <Modal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} title="Guia de Integração Google Sheets">
                 <div className="space-y-6 text-sm text-gray-700 dark:text-gray-300">
                     <div>
-                        <h3 className="font-black text-primary-600 uppercase mb-2">Passo 2: Configurar Script (Proteção contra Duplicidade)</h3>
-                        <p className="mb-2">Na planilha, vá em <strong>Extensões &gt; Apps Script</strong>. Copie o código abaixo para garantir que o sistema não repita linhas para o mesmo ID:</p>
+                        <h3 className="font-black text-primary-600 uppercase mb-2">Passo 2: Configurar Script (Proteção contra Duplicidade e Velocidade)</h3>
+                        <p className="mb-2 text-red-600 font-bold">ATENÇÃO: Este código foi atualizado para v2.8.6. Substitua o antigo no Apps Script para evitar lentidão!</p>
                         <div className="relative">
                             <pre className="bg-gray-900 text-blue-400 p-4 rounded-lg overflow-x-auto text-[10px] max-h-60 leading-tight border border-gray-700">
                                 {appsScriptCode}
@@ -414,29 +472,57 @@ function doGet(e) { return ContentService.createTextOutput("Script Ativo"); }`;
                     <div><label className="block text-sm font-medium">Senha</label><input type="text" value={password} onChange={e => setPassword(e.target.value)} required className="mt-1 block w-full rounded border-gray-300 dark:bg-gray-700 px-3 py-2" /></div>
                     
                     <div className="mt-4 border-t dark:border-gray-700 pt-4">
-                         <label className="block text-sm font-bold mb-3 uppercase text-primary-600">Permissões e Acessos</label>
-                         <div className="grid grid-cols-2 gap-4">
-                             <label className="flex items-center space-x-3 text-sm p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700">
-                                <input type="checkbox" checked={roles.isAdmin} onChange={e => setRoles({...roles, isAdmin: e.target.checked})} className="rounded text-primary-600 h-5 w-5" />
-                                <span><strong>ADMIN:</strong> Sistema Total</span>
+                         <label className="block text-sm font-bold mb-3 uppercase text-primary-600">Acessos aos Ambientes</label>
+                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                             <label className="flex items-center space-x-2 text-xs p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700 cursor-pointer">
+                                <input type="checkbox" checked={roles.isAdmin} onChange={e => setRoles({...roles, isAdmin: e.target.checked})} className="rounded text-red-600 h-4 w-4" />
+                                <span className="font-bold">ADMIN TOTAL</span>
                              </label>
-                             <label className="flex items-center space-x-3 text-sm p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700">
-                                <input type="checkbox" checked={roles.isSales} onChange={e => setRoles({...roles, isSales: e.target.checked})} className="rounded text-primary-600 h-5 w-5" />
-                                <span><strong>VENDAS</strong></span>
+                             <label className="flex items-center space-x-2 text-xs p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700 cursor-pointer">
+                                <input type="checkbox" checked={roles.canViewDashboard} onChange={e => setRoles({...roles, canViewDashboard: e.target.checked})} className="rounded text-primary-600 h-4 w-4" />
+                                <span>Dashboard</span>
                              </label>
-                             <label className="flex items-center space-x-3 text-sm p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700">
-                                <input type="checkbox" checked={roles.isProduction} onChange={e => setRoles({...roles, isProduction: e.target.checked})} className="rounded text-primary-600 h-5 w-5" />
-                                <span><strong>PRODUÇÃO</strong></span>
+                             <label className="flex items-center space-x-2 text-xs p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700 cursor-pointer">
+                                <input type="checkbox" checked={roles.canViewOrders} onChange={e => setRoles({...roles, canViewOrders: e.target.checked})} className="rounded text-primary-600 h-4 w-4" />
+                                <span>Pedidos</span>
                              </label>
-                             <label className="flex items-center space-x-3 text-sm p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700">
-                                <input type="checkbox" checked={roles.isStock} onChange={e => setRoles({...roles, isStock: e.target.checked})} className="rounded text-primary-600 h-5 w-5" />
-                                <span><strong>ESTOQUE</strong></span>
+                             <label className="flex items-center space-x-2 text-xs p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700 cursor-pointer">
+                                <input type="checkbox" checked={roles.canViewCustomers} onChange={e => setRoles({...roles, canViewCustomers: e.target.checked})} className="rounded text-primary-600 h-4 w-4" />
+                                <span>Clientes</span>
+                             </label>
+                             <label className="flex items-center space-x-2 text-xs p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700 cursor-pointer">
+                                <input type="checkbox" checked={roles.canViewProduction} onChange={e => setRoles({...roles, canViewProduction: e.target.checked})} className="rounded text-primary-600 h-4 w-4" />
+                                <span>Produção</span>
+                             </label>
+                             <label className="flex items-center space-x-2 text-xs p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700 cursor-pointer">
+                                <input type="checkbox" checked={roles.canViewExpedicao} onChange={e => setRoles({...roles, canViewExpedicao: e.target.checked})} className="rounded text-primary-600 h-4 w-4" />
+                                <span>Expedição</span>
+                             </label>
+                             <label className="flex items-center space-x-2 text-xs p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700 cursor-pointer">
+                                <input type="checkbox" checked={roles.canViewStock} onChange={e => setRoles({...roles, canViewStock: e.target.checked})} className="rounded text-primary-600 h-4 w-4" />
+                                <span>Estoque</span>
+                             </label>
+                             <label className="flex items-center space-x-2 text-xs p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700 cursor-pointer">
+                                <input type="checkbox" checked={roles.canViewProducts} onChange={e => setRoles({...roles, canViewProducts: e.target.checked})} className="rounded text-primary-600 h-4 w-4" />
+                                <span>Produtos</span>
+                             </label>
+                             <label className="flex items-center space-x-2 text-xs p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700 cursor-pointer">
+                                <input type="checkbox" checked={roles.canViewFinance} onChange={e => setRoles({...roles, canViewFinance: e.target.checked})} className="rounded text-primary-600 h-4 w-4" />
+                                <span>Financeiro</span>
+                             </label>
+                             <label className="flex items-center space-x-2 text-xs p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700 cursor-pointer">
+                                <input type="checkbox" checked={roles.canViewReports} onChange={e => setRoles({...roles, canViewReports: e.target.checked})} className="rounded text-primary-600 h-4 w-4" />
+                                <span>Relatórios</span>
+                             </label>
+                             <label className="flex items-center space-x-2 text-xs p-2 bg-gray-50 dark:bg-gray-900/50 rounded border dark:border-gray-700 cursor-pointer">
+                                <input type="checkbox" checked={roles.canViewSettings} onChange={e => setRoles({...roles, canViewSettings: e.target.checked})} className="rounded text-primary-600 h-4 w-4" />
+                                <span>Configuração</span>
                              </label>
                          </div>
                     </div>
                     <div className="flex justify-end pt-4 space-x-3 border-t dark:border-gray-700">
-                        <button type="button" onClick={() => setIsModalOpen(false)} className="bg-gray-200 px-6 py-2 rounded font-bold">Cancelar</button>
-                        <button type="submit" className="bg-primary-600 text-white px-8 py-2 rounded font-bold hover:bg-primary-700 shadow-md">Salvar Usuário</button>
+                        <button type="button" onClick={() => setIsModalOpen(false)} className="bg-gray-200 px-6 py-2 rounded font-bold text-sm">Cancelar</button>
+                        <button type="submit" className="bg-primary-600 text-white px-8 py-2 rounded font-bold text-sm hover:bg-primary-700 shadow-md">Salvar Usuário</button>
                     </div>
                 </form>
             </Modal>

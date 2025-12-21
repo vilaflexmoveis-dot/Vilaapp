@@ -2,7 +2,23 @@
 import { Customer, Product, Order, OrderItem, ProductionOrder, Payment, PaymentMethod, User, OrderStatus, ProductionStatus, ProductionPriority, SuggestionStatus, ProductionSuggestion } from '../types';
 
 export const mockUsers: User[] = [
-  { id: 'ADMIN-001', name: 'Admin', email: 'admin@vilaflex.com.br', password: 'Bqnsepc10@@', isAdmin: true, isSales: true, isProduction: true, isStock: true, isFinance: true, canViewDashboard: true },
+  { 
+    id: 'ADMIN-001', 
+    name: 'Admin', 
+    email: 'admin@vilaflex.com.br', 
+    password: 'Bqnsepc10@@', 
+    isAdmin: true, 
+    canViewDashboard: true,
+    canViewOrders: true,
+    canViewCustomers: true,
+    canViewProduction: true,
+    canViewExpedicao: true,
+    canViewStock: true,
+    canViewProducts: true,
+    canViewFinance: true,
+    canViewReports: true,
+    canViewSettings: true
+  },
 ];
 
 export const mockCustomers: Customer[] = [];

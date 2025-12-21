@@ -251,8 +251,17 @@ const DispatchRow: React.FC<{ order: Order; stockData: StockData[] }> = ({ order
                 <td className="py-3 px-4 sm:px-6 text-left">{customer?.name || 'N/A'}</td>
                 <td className="py-3 px-4 sm:px-6 text-center">
                     <div className="flex flex-col items-center">
-                        <span className="text-[10px] text-gray-400 uppercase font-bold">Prev. Entrega</span>
-                        <span className="font-bold">{formatSafeDate(order.deliveryDate)}</span>
+                        {order.status === OrderStatus.Delivered && order.romaneioDate ? (
+                            <>
+                                <span className="text-[10px] text-green-500 uppercase font-bold">Entregue em</span>
+                                <span className="font-bold text-green-600">{formatSafeDate(order.romaneioDate)}</span>
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-[10px] text-gray-400 uppercase font-bold">Prev. Entrega</span>
+                                <span className="font-bold">{formatSafeDate(order.deliveryDate)}</span>
+                            </>
+                        )}
                     </div>
                 </td>
                 <td className="py-3 px-4 sm:px-6 text-center">
@@ -293,9 +302,11 @@ const DispatchRow: React.FC<{ order: Order; stockData: StockData[] }> = ({ order
                                 <div className="mt-4 text-sm">
                                     <p><span className="font-semibold">Endereço:</span> {[customer?.address, customer?.number, customer?.neighborhood, customer?.city].filter(Boolean).join(', ')}</p>
                                     <p><span className="font-semibold">Telefone:</span> {customer?.phone || 'N/A'}</p>
-                                    <p className="mt-1"><span className="font-bold text-primary-600">Previsão: {formatSafeDate(order.deliveryDate)}</span></p>
+                                    <p className="mt-1"><span className="font-bold text-primary-600">Previsão Original: {formatSafeDate(order.deliveryDate)}</span></p>
                                     {order.romaneioDate && (
-                                        <p className="mt-2 text-xs text-gray-500 italic">Documento gerado em: {new Date(order.romaneioDate).toLocaleString('pt-BR')}</p>
+                                        <p className="mt-2 text-xs text-green-600 font-bold bg-green-50 dark:bg-green-900/20 p-2 rounded border border-green-100 dark:border-green-800">
+                                            Documento gerado em: {new Date(order.romaneioDate).toLocaleString('pt-BR')}
+                                        </p>
                                     )}
                                 </div>
                             </div>

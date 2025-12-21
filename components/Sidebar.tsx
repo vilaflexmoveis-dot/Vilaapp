@@ -28,25 +28,25 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView }) => {
 
   const navItems: { view: ViewType; label: string; icon: React.ElementType; permission: string }[] = [
     { view: 'dashboard', label: 'Dashboard', icon: HomeIcon, permission: 'canViewDashboard' },
-    { view: 'orders', label: 'Pedidos', icon: ShoppingCartIcon, permission: 'isSales' },
-    { view: 'customers', label: 'Clientes', icon: UsersIcon, permission: 'isSales' },
-    { view: 'production', label: 'Produção', icon: CogIcon, permission: 'isProduction' },
-    { view: 'expedicao', label: 'Expedição', icon: TruckIcon, permission: 'isStock' },
-    { view: 'stock', label: 'Estoque', icon: ArchiveIcon, permission: 'isStock' },
-    { view: 'products', label: 'Produtos', icon: TagIcon, permission: 'isAdmin' }, // Alterado de isStock para isAdmin
-    { view: 'finance', label: 'Financeiro', icon: CurrencyDollarIcon, permission: 'isFinance' },
-    { view: 'reports', label: 'Relatórios', icon: ChartBarIcon, permission: 'isAdmin' },
+    { view: 'orders', label: 'Pedidos', icon: ShoppingCartIcon, permission: 'canViewOrders' },
+    { view: 'customers', label: 'Clientes', icon: UsersIcon, permission: 'canViewCustomers' },
+    { view: 'production', label: 'Produção', icon: CogIcon, permission: 'canViewProduction' },
+    { view: 'expedicao', label: 'Expedição', icon: TruckIcon, permission: 'canViewExpedicao' },
+    { view: 'stock', label: 'Estoque', icon: ArchiveIcon, permission: 'canViewStock' },
+    { view: 'products', label: 'Produtos', icon: TagIcon, permission: 'canViewProducts' },
+    { view: 'finance', label: 'Financeiro', icon: CurrencyDollarIcon, permission: 'canViewFinance' },
+    { view: 'reports', label: 'Relatórios', icon: ChartBarIcon, permission: 'canViewReports' },
   ];
   
   const hasPermission = (perm: string) => {
       if(!user) return false;
-      if(user.isAdmin) return true; // Admins veem tudo
+      if(user.isAdmin) return true;
       return !!(user[perm as keyof User]);
   }
 
   return (
     <div className="hidden md:flex flex-col w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
-      <div className="flex items-center justify-center h-16 border-b border-gray-200 dark:border-gray-700 px-4">
+      <div className="flex flex-col items-center justify-center h-20 border-b border-gray-200 dark:border-gray-700 px-4">
          <button 
             onClick={handleManualSync}
             className={`text-2xl font-extrabold text-primary-600 dark:text-primary-400 hover:opacity-80 transition-all flex items-center gap-2 ${isSyncing ? 'animate-pulse' : ''}`}
@@ -55,6 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setCurrentView }) => {
             VilaFlex
             {isSyncing && <SyncIcon className="w-4 h-4 animate-spin" />}
          </button>
+         <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">v2.8.5 - Stable</span>
       </div>
       <div className="flex-1 overflow-y-auto">
         <nav className="flex-1 px-2 py-4 space-y-2">
